@@ -137,8 +137,83 @@ def predict_stock():
     # Get stock information
     stock = yf.Ticker(symbol)
 
+    # Get current date
+    from datetime import datetime, timedelta
+
+
+    # Get the current date
+    current_date = datetime.now().date()
+
+    # Check if the current date falls on a weekend (Saturday or Sunday)
+    if current_date.weekday() == 5:  # Saturday
+        # Subtract one day to get to Friday
+        current_date -= timedelta(days=1)
+    elif current_date.weekday() == 6:  # Sunday
+        # Subtract two days to get to Friday
+        current_date -= timedelta(days=2)
+
+    # Format the current date as "yyyy-mm-dd"
+    most_recent_trading_date = current_date.strftime("%Y-%m-%d")
+    
+    # Generate first trading days for some stocks:
+
+    '''
+    Netflix (NFLX): 2002-05-23
+
+    NVIDIA (NVDA): 1999-01-22
+
+    Google (GOOGL/GOOG): 2004-08-19
+
+    Microsoft (MSFT): 1986-03-13
+
+    Amazon (AMZN): 1997-05-15
+
+    Facebook (FB): 2012-05-18
+
+    Apple (AAPL): 1980-12-12
+
+    Blackstone (BX): 2007-06-22
+
+    BlackRock (BLK): 1988-10-01
+
+    JPMorgan Chase (JPM): 1972-06-01
+
+    Goldman Sachs (GS): 1999-05-04
+
+    Costco (COST): 1985-07-09
+
+    '''
+    stock_ticker = 'X'  # Replace 'X' with the desired stock ticker
+
+    if symbol == 'NFLX':
+        start = '2002-05-23'
+    elif symbol == 'NVDA':
+        start = '1999-01-22'
+    elif symbol == 'GOOGL' or symbol == 'GOOG':
+        start = '2004-08-19'
+    elif symbol == 'MSFT':
+        start = '1986-03-13'
+    elif symbol == 'AMZN':
+        start = '1997-05-15'
+    elif symbol == 'FB':
+        start = '2012-05-18'
+    elif symbol == 'AAPL':
+        start = '1980-12-12'
+    elif symbol == 'BX':
+        start = '2007-06-22'
+    elif symbol == 'BLK':
+        start = '1988-10-01'
+    elif symbol == 'JPM':
+        start = '1972-06-01'
+    elif symbol == 'GS':
+        start = '1999-05-04'
+    elif symbol == 'COST':
+        start = '1985-07-09'
+    else:
+        start = '1980-12-12'
+
     # Load historical stock data
-    stock_data = stock.history(start="1980-12-12", end="2023-06-01",
+    stock_data = stock.history(start=start, end=most_recent_trading_date,
                                interval="1d")
 
     stock_data['Close(t-1)'] = stock_data['Close'].shift(1)
@@ -174,21 +249,30 @@ def predict_stock():
         print(f'Number of neurons: {n}, Test error: {error:.6f}')
 
     test_errors = np.array(test_errors)
-    mean_error = np.mean(test_errors)
-    std_error = np.std(test_errors)
+    #mean_error = np.mean(test_errors)
+    #std_error = np.std(test_errors)
 
     # Set the threshold as a multiple of the standard deviation
-    threshold = 1  # Adjust this value as needed
+    #threshold = 1  # Adjust this value as needed
 
     # Filter out the outlier values
-    filtered_indices = np.where(np.abs(
-        test_errors - mean_error) <= threshold * std_error)[0]  # Extract the array
-    filtered_neurons = [neurons_range[i] for i in filtered_indices]
-    filtered_errors = [test_errors[i] for i in filtered_indices]
+    #filtered_indices = np.where(np.abs(
+     #   test_errors - mean_error) <= threshold * std_error)[0]  # Extract the array
+    #filtered_neurons = [neurons_range[i] for i in filtered_indices]
+    #filtered_errors = [test_errors[i] for i in filtered_indices]
 
-    min_error = min(filtered_errors)
-    min_index = filtered_errors.index(min_error)
-    best_neuron_count = filtered_neurons[min_index]
+    #min_error = min(filtered_errors)
+    #min_index = filtered_errors.index(min_error)
+    #best_neuron_count = filtered_neurons[min_index]
+
+    indices = list(range(len(test_errors)))
+    list_neurons = [neurons_range[i] for i in indices]
+    list_errors = [test_errors[i] for i in indices]
+
+    min_error = min(list_errors)
+    min_index = list_errors.index(min_error)
+    best_neuron_count = list_neurons[min_index]
+
 
     # Create an instance of the MLPRegressor with the best_neuron_count
     model = MLPRegressor(hidden_layer_sizes=(best_neuron_count), max_iter=2000,
