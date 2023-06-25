@@ -198,11 +198,10 @@ def predict_stock():
         # Make predictions
     predicted_price = model.predict(X_test)[0]
 
-    formatted_price = Decimal(predicted_price).quantize(Decimal('0.0000'))
-
+    
 
     # Create a dictionary to hold the predicted price
-    result = {'predicted_price': str(formatted_price)}
+    result = {'predicted_price': predicted_price}
 
     # Return the predicted price as JSON
     return jsonify(result)
