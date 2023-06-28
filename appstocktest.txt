@@ -489,3 +489,70 @@ function StockPredictionPage() {
 export default StockPredictionPage;
 
 #################################################
+
+import React, { useState } from 'react';
+import axios from 'axios';
+
+function StockPredictionPage() {
+  const [predictionResult, setPredictionResult] = useState('');
+  const [XGBpredictionResult, setXGBoostPredictionResult] = useState('');
+  const [most_recent_price, setMostRecentPrice] = useState('');
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    try {
+      const userInput = event.target.feature1.value; // Get the user input value
+
+      // Make the POST request to the backend endpoint for stock prediction
+      const response = await axios.post(
+        "http://localhost:5000/stockprediction",
+        { symbol: userInput } // Pass the user input as 'symbol' in the request body
+      );
+
+      // Handle the response and update the prediction result
+      const { predicted_price, xgboost_predicted_price, most_recent_price } = response.data;
+      setPredictionResult(predicted_price);
+      setXGBoostPredictionResult(xgboost_predicted_price); // Create a new state variable for XGBoost prediction
+      setMostRecentPrice(most_recent_price);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background: 'lightyellow',
+        padding: '20px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+      }}
+    >
+      <h1 style={{ color: 'navy', fontWeight: 'bold' }}>Stock Price Prediction</h1>
+      <form onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="feature1" style={{ color: 'navy', fontWeight: 'bold' }}>
+            Stock Ticker:
+          </label>
+          <input type="text" id="feature1" name="feature1" />
+        </div>
+        <button type="submit" style={{ marginTop: '10px' }}>Predict</button>
+      </form>
+      <div style={{ marginTop: '20px' }}>
+        <h2 style={{ color: 'navy', fontWeight: 'bold' }}>Prediction Results</h2>
+        <p style={{ color: 'navy', fontWeight: 'bold', fontStyle: 'italic' }}>
+          Neural Network Stock Prediction: {predictionResult}
+        </p>
+        <p style={{ color: 'navy', fontWeight: 'bold', fontStyle: 'italic' }}>
+          XGBoost Stock Prediction: {XGBpredictionResult}
+        </p>
+        <p style={{ color: 'navy', fontWeight: 'bold', fontStyle: 'italic' }}>
+          Most Recent Stock Price: {most_recent_price}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default StockPredictionPage;
