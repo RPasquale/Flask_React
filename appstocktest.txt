@@ -428,3 +428,64 @@ def predict_stock():
 
 if __name__ == '__main__':
     app.run()
+
+##################################################
+import React, { useState } from 'react';
+import axios from 'axios';
+
+function StockPredictionPage() {
+  const [predictionResult, setPredictionResult] = useState('');
+  const [XGBpredictionResult, setXGBoostPredictionResult] = useState('');
+  const [most_recent_price, setMostRecentPrice] = useState('');
+
+
+  const handleSubmit = async (event) => {
+  event.preventDefault();
+
+  try {
+    const userInput = event.target.feature1.value; // Get the user input value
+
+    // Make the POST request to the backend endpoint for stock prediction
+    const response = await axios.post(
+      "http://localhost:5000/stockprediction",
+      { symbol: userInput } // Pass the user input as 'symbol' in the request body
+    );
+
+    // Handle the response and update the prediction result
+    const { predicted_price, 
+            xgboost_predicted_price ,
+            most_recent_price } = response.data;
+    setPredictionResult(predicted_price);
+    setXGBoostPredictionResult(xgboost_predicted_price); // Create a new state variable for XGBoost prediction
+    setMostRecentPrice(most_recent_price);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+
+
+  return (
+    <div>
+      <h1>Stock Price Prediction</h1>
+      <form onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="feature1">
+            Stock Ticker:
+          </label>
+          <input type="text" id="feature1" name="feature1" />
+        </div>
+        </form>
+        <div>
+        <h2>Prediction Results</h2>
+        <p>Neural Network Stock Prediction: {predictionResult}</p>
+        <p>XGBoost Stock Prediction: {XGBpredictionResult}</p>
+        <p>Most Recent Stock Price: {most_recent_price}</p>
+      </div>
+    </div>
+  );
+}
+
+export default StockPredictionPage;
+
+#################################################

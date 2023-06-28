@@ -273,11 +273,41 @@ def predict_stock():
     # Stock XGBoost
     import xgboost as xgb
     from xgboost import DMatrix
+    ###################
+    #boost_model = xgb.XGBRegressor(objective = 'reg:squarederror')
+    #boost_model.fit(X_train, y_train)
+    #xg_predicted_price = boost_model.predict(X_test)[-1]
+    #xg_formatted_price = float(xg_predicted_price)
+    #XG_formatted_price = Decimal(
+    #    xg_formatted_price).quantize(Decimal('0.0000'))
+    ########################
+    # Define the hyperparameter grid
+    param_grid = {
+        'learning_rate': [0.1, 0.01],
+        'n_estimators': [100, 200, 300],
+        'max_depth': [3, 5, 7],
+        'subsample': [0.8, 1.0],
+        'colsample_bytree': [0.8, 1.0],
+    }
 
-    boost_model = xgb.XGBRegressor(objective = 'reg:squarederror')
-    boost_model.fit(X_train, y_train)
-    xg_predicted_price = boost_model.predict(X_test)[-1]
-    xg_formatted_price = float(xg_predicted_price)
+    # Create an instance of the XGBoost regressor
+    boost_model = xgb.XGBRegressor(objective='reg:squarederror')
+
+    from sklearn.model_selection import GridSearchCV
+
+    # Perform grid search
+    grid_search = GridSearchCV(
+        estimator=boost_model, param_grid=param_grid, cv=5)
+    grid_search.fit(X_train, y_train)
+
+    # Get the best parameters and best score
+    best_params = grid_search.best_params_
+    best_score = grid_search.best_score_
+
+    # Use the best model for prediction
+    best_model = grid_search.best_estimator_
+    predicted_price = best_model.predict(X_test)[-1]
+    xg_formatted_price = float(predicted_price)
     XG_formatted_price = Decimal(
         xg_formatted_price).quantize(Decimal('0.0000'))
 
