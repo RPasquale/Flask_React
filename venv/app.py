@@ -237,56 +237,60 @@ def predict_stock():
         X_scaled, y, test_size=0.3, random_state=1)
 
     # Train the model
-    neurons_range = range(1, 101, 10)
+    neurons_range = range(1, 10, 1)
     test_errors = []
 
     for n in neurons_range:
         model = MLPRegressor(hidden_layer_sizes=(
-            n), max_iter=2000, tol=1e-4, activation='relu', solver='adam', alpha=0.001)
+            n,n,n), max_iter=2000, tol=1e-4, activation='relu', solver='adam', alpha=0.001)
         model.fit(X_train, y_train)
         error = 1 - model.score(X_test, y_test)
         test_errors.append(error)
         print(f'Number of neurons: {n}, Test error: {error:.6f}')
 
+    # Neural network Model Selection
     test_errors = np.array(test_errors)
-    #mean_error = np.mean(test_errors)
-    #std_error = np.std(test_errors)
-
-    # Set the threshold as a multiple of the standard deviation
-    #threshold = 1  # Adjust this value as needed
-
-    # Filter out the outlier values
-    #filtered_indices = np.where(np.abs(
-     #   test_errors - mean_error) <= threshold * std_error)[0]  # Extract the array
-    #filtered_neurons = [neurons_range[i] for i in filtered_indices]
-    #filtered_errors = [test_errors[i] for i in filtered_indices]
-
-    #min_error = min(filtered_errors)
-    #min_index = filtered_errors.index(min_error)
-    #best_neuron_count = filtered_neurons[min_index]
-
     indices = list(range(len(test_errors)))
     list_neurons = [neurons_range[i] for i in indices]
     list_errors = [test_errors[i] for i in indices]
-
     min_error = min(list_errors)
     min_index = list_errors.index(min_error)
     best_neuron_count = list_neurons[min_index]
 
-
     # Create an instance of the MLPRegressor with the best_neuron_count
-    model = MLPRegressor(hidden_layer_sizes=(best_neuron_count), max_iter=2000,
+    model = MLPRegressor(hidden_layer_sizes=(best_neuron_count, 
+                                             best_neuron_count,
+                                             best_neuron_count), max_iter=2000,
                          tol=1e-4, activation='relu', solver='adam', alpha=0.001)
     model.fit(X_scaled, y)
 
-        # Make predictions
-    predicted_price = model.predict(X_test)[0]
-
+    # Make predictions
+    predicted_price = model.predict(X_test)[-1]
     formatted_price = Decimal(predicted_price).quantize(Decimal('0.0000'))
+    most_recent_price = stock.history(period="1d")["Close"].iloc[-1]
+    formatted_recent_price = Decimal(most_recent_price).quantize(Decimal('0.0000'))
+
+    # Stock XGBoost
+    import xgboost as xgb
+    from xgboost import DMatrix
+
+    boost_model = xgb.XGBRegressor(objective = 'reg:squarederror')
+    boost_model.fit(X_train, y_train)
+    xg_predicted_price = boost_model.predict(X_test)[-1]
+    xg_formatted_price = float(xg_predicted_price)
+    XG_formatted_price = Decimal(
+        xg_formatted_price).quantize(Decimal('0.0000'))
+
+
+
 
 
     # Create a dictionary to hold the predicted price
-    result = {'predicted_price': str(formatted_price)}
+    result = {
+        'predicted_price': str(formatted_price),
+        'xgboost_predicted_price': str(XG_formatted_price),
+        'most_recent_price': str(formatted_recent_price)
+    }
 
     # Return the predicted price as JSON
     return jsonify(result)
