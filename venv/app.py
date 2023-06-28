@@ -2,16 +2,94 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPRegressor
 import matplotlib.pyplot as plt
 import pandas as pd
-from flask import Flask, request, jsonify
 from sklearn.datasets import  fetch_california_housing
 import numpy as np
 from sklearn.base import BaseEstimator
 from flask_cors import CORS
 import yfinance as yf
 from decimal import Decimal
-
+from flask import Flask, request, jsonify, redirect, url_for
+from db import connect_to_database
+from user import User
+from flask_dance.contrib.google import make_google_blueprint, google
+from flask_pymongo import PyMongo
 
 app = Flask(__name__)
+
+
+google_bp = make_google_blueprint(
+    client_id="840094957080-u0rcair0evjmv6uhbm5qcilv6ure9cp0.apps.googleusercontent.com",
+    client_secret="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",
+    scope=["profile", "email"],
+    redirect_url="/login/google/callback"
+)
+
+app.register_blueprint(google_bp, url_prefix="/login")
+
+db = connect_to_database()
+
+@app.route("/register", methods=["POST"])
+def register():
+    # Extract the registration details from the request
+    full_name = request.json.get("full_name")
+    email = request.json.get("email")
+    password = request.json.get("password")
+
+    # Check if the email is already registered
+    if User.collection.find_one({"email": email}):
+        return jsonify({"message": "Email already registered"}), 409
+
+    # Create a new user document
+    user = User(None, full_name, email, None)
+    user.set_password(password)
+
+    # Insert the user document into the "users" collection
+    User.collection.insert_one(user.__dict__)
+
+    return jsonify({"message": "User registered successfully"}), 201
+
+@app.route("/login", methods=["POST"])
+def login():
+    # Extract the login details from the request
+    email = request.json.get("email")
+    password = request.json.get("password")
+
+    # Retrieve the user from the database based on the provided email
+    user = User.collection.find_one({"email": email})
+
+    # Check if the user exists and the password is correct
+    if user and user.check_password(password):
+        # Perform the login logic here
+        # For example, you can create a session or issue a token for authentication
+        return jsonify({"message": "User logged in successfully"}), 200
+
+    # Return an error message if the login is unsuccessful
+    return jsonify({"message": "Invalid email or password"}), 401
+
+@app.route("/login/google")
+def login_google():
+    if not google.authorized:
+        return redirect(url_for("google.login"))
+
+    # Handle the authorized state
+    # You can access the user's information using `google.get("/oauth2/v2/userinfo")`
+
+    return "Logged in with Google!"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #CORS(app)
 #CORS(app, origins='http://localhost:3000')
 
