@@ -5,18 +5,16 @@ import pandas as pd
 from sklearn.datasets import  fetch_california_housing
 import numpy as np
 from sklearn.base import BaseEstimator
-from flask_cors import CORS
 import yfinance as yf
 from decimal import Decimal
+from flask_cors import CORS
 from flask import Flask, request, jsonify, redirect, url_for
 from db import connect_to_database
 from user import User
 from flask_dance.contrib.google import make_google_blueprint, google
-from flask_pymongo import PyMongo
 
 app = Flask(__name__)
-app.config['MONGO_URI'] = 'mongodb+srv://rpasquale01:Binga.12@mernpymlcluster.12c8kkg.mongodb.net/?retryWrites=true&w=majority'
-mongo = PyMongo(app)
+mongo = connect_to_database()
 
 # Enable CORS for the house login endpoint
 CORS(app, resources={r"/login": {"origins": "http://localhost:3000"}})
@@ -27,10 +25,6 @@ CORS(app, resources={r"/register": {"origins": "http://localhost:3000"}})
 # Enable CORS for the house Google login endpoint
 CORS(app, resources={r"/login/google": {"origins": "http://localhost:3000"}})
 
-
-
-
-
 google_bp = make_google_blueprint(
     client_id="840094957080-u0rcair0evjmv6uhbm5qcilv6ure9cp0.apps.googleusercontent.com",
     client_secret="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",
@@ -39,8 +33,6 @@ google_bp = make_google_blueprint(
 )
 
 app.register_blueprint(google_bp, url_prefix="/login")
-
-db = connect_to_database()
 
 @app.route("/register", methods=["POST"])
 def register():
@@ -54,7 +46,7 @@ def register():
         return jsonify({"message": "Email already registered"}), 409
 
     # Create a new user document
-    user = User(full_name=full_name, email=email, password=password)
+    user = User(full_name=full_name, email=email)
     user.set_password(password)
 
     # Insert the user document into the "users" collection
@@ -69,13 +61,17 @@ def login():
     password = request.json.get("password")
 
     # Retrieve the user from the database based on the provided email
-    user = mongo.db.users.find_one({"email": email})
+    user_dict = mongo.db.users.find_one({"email": email})
 
     # Check if the user exists and the password is correct
-    if user and user.check_password(password):
-        # Perform the login logic here
-        # For example, you can create a session or issue a token for authentication
-        return jsonify({"message": "User logged in successfully"}), 200
+    if user_dict:
+        # Create a User object from the retrieved dictionary
+        user = User(**user_dict)
+
+        if user.check_password(password):
+            # Perform the login logic here
+            # For example, you can create a session or issue a token for authentication
+            return jsonify({"message": "User logged in successfully"}), 200
 
     # Return an error message if the login is unsuccessful
     return jsonify({"message": "Invalid email or password"}), 401
@@ -89,6 +85,7 @@ def login_google():
     # You can access the user's information using `google.get("/oauth2/v2/userinfo")`
 
     return "Logged in with Google!"
+
 
 
 #CORS(app)
