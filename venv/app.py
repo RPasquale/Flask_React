@@ -15,6 +15,20 @@ from flask_dance.contrib.google import make_google_blueprint, google
 from flask_pymongo import PyMongo
 
 app = Flask(__name__)
+app.config['MONGO_URI'] = 'mongodb+srv://rpasquale01:Binga.12@mernpymlcluster.12c8kkg.mongodb.net/?retryWrites=true&w=majority'
+mongo = PyMongo(app)
+
+# Enable CORS for the house login endpoint
+CORS(app, resources={r"/login": {"origins": "http://localhost:3000"}})
+
+# Enable CORS for the house register endpoint
+CORS(app, resources={r"/register": {"origins": "http://localhost:3000"}})
+
+# Enable CORS for the house Google login endpoint
+CORS(app, resources={r"/login/google": {"origins": "http://localhost:3000"}})
+
+
+
 
 
 google_bp = make_google_blueprint(
@@ -36,15 +50,15 @@ def register():
     password = request.json.get("password")
 
     # Check if the email is already registered
-    if User.collection.find_one({"email": email}):
+    if mongo.db.users.find_one({"email": email}):
         return jsonify({"message": "Email already registered"}), 409
 
     # Create a new user document
-    user = User(None, full_name, email, None)
+    user = User(full_name=full_name, email=email, password=password)
     user.set_password(password)
 
     # Insert the user document into the "users" collection
-    User.collection.insert_one(user.__dict__)
+    mongo.db.users.insert_one(user.__dict__)
 
     return jsonify({"message": "User registered successfully"}), 201
 
@@ -55,7 +69,7 @@ def login():
     password = request.json.get("password")
 
     # Retrieve the user from the database based on the provided email
-    user = User.collection.find_one({"email": email})
+    user = mongo.db.users.find_one({"email": email})
 
     # Check if the user exists and the password is correct
     if user and user.check_password(password):
@@ -75,19 +89,6 @@ def login_google():
     # You can access the user's information using `google.get("/oauth2/v2/userinfo")`
 
     return "Logged in with Google!"
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 #CORS(app)
