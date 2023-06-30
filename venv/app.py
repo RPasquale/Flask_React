@@ -12,9 +12,15 @@ from flask import Flask, request, jsonify, redirect, url_for
 from db import connect_to_database
 from user import User
 from flask_dance.contrib.google import make_google_blueprint, google
+import secrets
+from bson import ObjectId
+
 
 app = Flask(__name__)
 mongo = connect_to_database()
+
+app.secret_key = secrets.token_hex(16)
+
 
 # Enable CORS for the house login endpoint
 CORS(app, resources={r"/login": {"origins": "http://localhost:3000"}})
@@ -29,7 +35,7 @@ google_bp = make_google_blueprint(
     client_id="840094957080-u0rcair0evjmv6uhbm5qcilv6ure9cp0.apps.googleusercontent.com",
     client_secret="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",
     scope=["profile", "email"],
-    redirect_url="/login/google/callback"
+    redirect_url="http://localhost:5000/login/google/callback"
 )
 
 app.register_blueprint(google_bp, url_prefix="/login")
@@ -83,8 +89,20 @@ def login_google():
 
     # Handle the authorized state
     # You can access the user's information using `google.get("/oauth2/v2/userinfo")`
+    google_user_info = google.get("/oauth2/v2/userinfo").json()
+    email = google_user_info["email"]
 
-    return "Logged in with Google!"
+    # Check if the email is already registered
+    if mongo.db.users.find_one({"email": email}):
+        return jsonify({"message": "Email already registered"}), 409
+
+    # Create a new user document
+    user = User(full_name=google_user_info["name"], email=email)
+
+    # Insert the user document into the "users" collection
+    mongo.db.users.insert_one(user.__dict__)
+
+    return jsonify({"message": "User registered successfully"}), 201
 
 
 
@@ -150,6 +168,27 @@ def predict():
     prediction = knn_reg_cali.predict(input_data)[0]
 
     # Return the prediction result as JSON
+    HP_result = {'prediction': prediction,
+                'Median Income of Households in a block' :float(user_input['feature1']),
+                'Median Age of a House within a block' :float(user_input['feature2']),
+                'Average Number of Rooms in a Block' :float(user_input['feature3']),
+                'Average Number of Bedrooms in a Block' :float(user_input['feature4']),
+                'Total Number of people residing within a block' :float(user_input['feature5']),
+                'Average Occupancy' : float(user_input['feature6']),
+                'Latitude' : float(user_input['feature7']),
+                'Longitude' :float(user_input['feature8'])}
+
+    try:
+        # Save the result in the MongoDB collection
+        mongo.db.HP_results.insert_one(HP_result)
+        print("Result saved in the database")
+    except Exception as e:
+        print("Error saving result in the database:", str(e))
+
+
+    HP_result['_id'] = str(HP_result['_id'])  # Convert ObjectId to string
+
+    # Return the prediction result as JSON
     result = {'prediction': prediction}
     return jsonify(result)
 
@@ -187,15 +226,46 @@ def predict_diabetes():
     ]
 
     input_data = np.array(feature_values).reshape(1, -1)
-
+    
     model_predictions = {
+        'Linear Regression': linear.predict(input_data)[0],
+        'Ridge Regression': ridge.predict(input_data)[0],
+        'Lasso Regression': lasso.predict(input_data)[0],
+        'Age' : float(user_input['feature1']),
+        'Sex' : float(user_input['feature2']),
+        'Body Mass Index (BMI)' : float(user_input['feature3']),
+        'Average Blood Pressure' :float(user_input['feature4']),
+        'Total Serum Cholesterol' : float(user_input['feature5']),
+        'Low Density Lipoproteins' : float(user_input['feature6']),
+        'High Density Lipoproteins' : float(user_input['feature7']),
+        'Total Cholesterol / HDL' : float(user_input['feature8']),
+        'Log of Serum Triglicerydes Level' : float(user_input['feature9']),
+        'Blood Sugar Level' : float(user_input['feature10']),
+    }
+
+    try:
+        # Save the result in the MongoDB collection
+        mongo.db.LR_results.insert_one(model_predictions)
+        print("Result saved in the database")
+    except Exception as e:
+        print("Error saving result in the database:", str(e))
+
+
+    model_predictions['_id'] = str(model_predictions['_id'])  # Convert ObjectId to string
+
+    LR_predictions = {
         'Linear Regression': linear.predict(input_data)[0],
         'Ridge Regression': ridge.predict(input_data)[0],
         'Lasso Regression': lasso.predict(input_data)[0]
     }
 
-    result = {'prediction': model_predictions}
-    return jsonify(result)
+    LR_result = {'prediction': LR_predictions}
+
+    return jsonify(LR_result)
+
+
+
+
 
 
 # Enable CORS for the stock prediction endpoint
@@ -349,13 +419,7 @@ def predict_stock():
     # Stock XGBoost
     import xgboost as xgb
     from xgboost import DMatrix
-    ###################
-    #boost_model = xgb.XGBRegressor(objective = 'reg:squarederror')
-    #boost_model.fit(X_train, y_train)
-    #xg_predicted_price = boost_model.predict(X_test)[-1]
-    #xg_formatted_price = float(xg_predicted_price)
-    #XG_formatted_price = Decimal(
-    #    xg_formatted_price).quantize(Decimal('0.0000'))
+ 
     ########################
     # Define the hyperparameter grid
     param_grid = {
@@ -387,19 +451,59 @@ def predict_stock():
     XG_formatted_price = Decimal(
         xg_formatted_price).quantize(Decimal('0.0000'))
 
-
-
-
-
     # Create a dictionary to hold the predicted price
     result = {
         'predicted_price': str(formatted_price),
         'xgboost_predicted_price': str(XG_formatted_price),
-        'most_recent_price': str(formatted_recent_price)
+        'most_recent_price': str(formatted_recent_price),
+        'symbol': str(symbol)
     }
+
+    try:
+        # Save the result in the MongoDB collection
+        mongo.db.results.insert_one(result)
+        print("Result saved in the database")
+    except Exception as e:
+        print("Error saving result in the database:", str(e))
+
+    result['_id'] = str(result['_id'])  # Convert ObjectId to string
 
     # Return the predicted price as JSON
     return jsonify(result)
+
+shared_predictions = []
+CORS(app)
+# Enable CORS for the stock prediction endpoint
+CORS(app, resources={
+     r"/share": {"origins": "http://localhost:3000"}})
+
+@app.route('/share', methods=['POST'])
+def share_prediction():
+    data = request.get_json()
+    symbol = data.get('symbol')
+    predicted_price = data.get('predicted_price')
+    xgboost_predicted_price = data.get('xgboost_predicted_price')
+    most_recent_price = data.get('most_recent_price')
+
+    # Create a new shared prediction object
+    shared_prediction = {
+        '_id': len(shared_predictions) + 1,
+        'symbol': symbol,
+        'predicted_price': predicted_price,
+        'xgboost_predicted_price': xgboost_predicted_price,
+        'most_recent_price': most_recent_price
+    }
+
+    # Add the shared prediction to the list
+    shared_predictions.append(shared_prediction)
+
+    return jsonify(shared_prediction)
+
+@app.route('/shared', methods=['GET'])
+def get_shared_predictions():
+    return jsonify(shared_predictions)
+
+
 
 
 if __name__ == '__main__':

@@ -454,3 +454,299 @@ To associate predictions with authenticated users and store them in your MongoDB
    Adjust the code based on your database schema and the desired response format.
 
 Remember to import the necessary models, dependencies, and middleware in your files for proper functionality.
+
+
+
+
+
+
+#####################################################################################
+
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import axios from 'axios';
+
+const Login = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
+    try {
+      // Send a POST request to the backend to handle login
+      const response = await axios.post('http://localhost:5000/login', { email, password });
+
+      // Handle the successful login response
+      // For example, you can redirect the user to another page
+      // or store the user's access token in local storage
+      console.log(response.data); // Log the response for testing purposes
+    } catch (error) {
+      // Handle any errors that occurred during login
+      console.log(error); // Log the error for testing purposes
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    window.location.href = '/login/google';
+  };
+
+  return (
+    <div>
+      <h2>Login Page</h2>
+      <form onSubmit={handleLogin}>
+        <div>
+          <label htmlFor="email">Email:</label>
+          <input
+            type="email"
+            id="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label htmlFor="password">Password:</label>
+          <input
+            type="password"
+            id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        <button type="submit">Login</button>
+      </form>
+      <button onClick={handleGoogleLogin}>Login with Google</button>
+      <p>
+        Don't have an account? <Link to="/register">Register here</Link>
+      </p>
+    </div>
+  );
+};
+
+export default Login;
+
+
+###############
+
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Provider } from "react-redux"; // Add this import statement
+import store from "./redux/store"; // Add this import statement
+import Navbar from "./components/Navbar";
+import Home from "./components/Home";
+import Contact from "./components/Contact";
+import TestPage from "./components/Test";
+import Projects from "./components/Projects";
+import Login from "./components/Login";
+import Register from "./components/Register";
+import HousePredictionPage from "./components/HousePredictionPage";
+import DiabetesPredictionPage from "./components/DiabetesPredictionPage";
+import StockPredictionPage from "./components/StockPredictionPage";
+
+function App() {
+  return (
+    <Provider store={store}>
+      {" "}
+      {/* Add the Provider component and pass the store */}
+      <Router>
+        <div>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/test" element={<TestPage />} />
+            <Route path="/login/google" element={<Login />} />{" "}
+            {/* Add this route */}
+            <Route
+              path="/test/house-prediction/:id"
+              element={<HousePredictionPage />}
+            />
+            <Route
+              path="/test/diabetes-prediction/:id"
+              element={<DiabetesPredictionPage />}
+            />
+            <Route
+              path="/test/stock-prediction/:id"
+              element={<StockPredictionPage />}
+            />
+            <Route path="/contact" element={<Contact />} />
+          </Routes>
+        </div>
+      </Router>
+    </Provider>
+  );
+}
+
+export default App;
+
+
+
+
+###################
+login.jsx:
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import axios from 'axios';
+import { useDispatch } from 'react-redux';
+import { setFullName } from '../redux/userReducer';
+
+const Login = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const dispatch = useDispatch();
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
+    try {
+      // Send a POST request to the backend to handle login
+      const response = await axios.post('http://localhost:5000/login', { email, password });
+
+      // Handle the successful login response
+      const { fullName } = response.data;
+
+      // Dispatch the setFullName action with the full name
+      dispatch(setFullName(fullName));
+
+      // For example, you can redirect the user to another page
+      // or store the user's access token in local storage
+      console.log(response.data); // Log the response for testing purposes
+    } catch (error) {
+      // Handle any errors that occurred during login
+      console.log(error); // Log the error for testing purposes
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    window.location.href = '/login/google';
+  };
+
+  return (
+    <div>
+      <h2>Login Page</h2>
+      <form onSubmit={handleLogin}>
+        <div>
+          <label htmlFor="email">Email:</label>
+          <input
+            type="email"
+            id="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label htmlFor="password">Password:</label>
+          <input
+            type="password"
+            id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        <button type="submit">Login</button>
+      </form>
+      <button onClick={handleGoogleLogin}>Login with Google</button>
+      <p>
+        Don't have an account? <Link to="/register">Register here</Link>
+      </p>
+    </div>
+  );
+};
+
+export default Login;
+
+
+########################################
+
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function NewsfeedPage() {
+  const [sharedPredictions, setSharedPredictions] = useState([]);
+
+  useEffect(() => {
+    // Fetch the shared predictions from the backend
+    const fetchSharedPredictions = async () => {
+      try {
+        const response = await axios.get("http://localhost:5000/shared");
+        const sharedPredictionsData = response.data;
+        setSharedPredictions(sharedPredictionsData);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    fetchSharedPredictions();
+  }, []);
+
+  return (
+    <div className="newsfeed-page">
+      <h1>Newsfeed</h1>
+      {sharedPredictions.map((prediction) => (
+        <div key={prediction._id} className="prediction-item">
+          <h2>{prediction.symbol}</h2>
+          <p>Predicted Price: {prediction.predicted_price}</p>
+          <p>XGBoost Predicted Price: {prediction.xgboost_predicted_price}</p>
+          <p>Most Recent Price: {prediction.most_recent_price}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default NewsfeedPage;
+
+
+
+######################################
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function NewsfeedPage() {
+  const [sharedPredictions, setSharedPredictions] = useState([]);
+
+  useEffect(() => {
+    // Fetch the shared predictions from the backend
+    const fetchSharedPredictions = async () => {
+  try {
+    const response = await axios.get("http://localhost:5000/shared");
+    const sharedPredictionsData = response.data;
+    setSharedPredictions((prevSharedPredictions) => [
+      ...prevSharedPredictions,
+      ...sharedPredictionsData,
+    ]);
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+
+    fetchSharedPredictions();
+  }, []);
+
+  return (
+  <div className="newsfeed-page">
+    <h1>Newsfeed</h1>
+    {sharedPredictions.map((prediction) => (
+      <div
+        key={prediction._id}
+        className="prediction-item"
+        style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px" }}
+      >
+        <h2>{prediction.symbol}</h2>
+        <p>Predicted Price: {prediction.predicted_price}</p>
+        <p>XGBoost Predicted Price: {prediction.xgboost_predicted_price}</p>
+        <p>Most Recent Price: {prediction.most_recent_price}</p>
+      </div>
+    ))}
+  </div>
+);
+}
+
+export default NewsfeedPage;
