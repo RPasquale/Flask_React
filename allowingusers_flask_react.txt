@@ -750,3 +750,57 @@ function NewsfeedPage() {
 }
 
 export default NewsfeedPage;
+
+
+########################################
+shared_diab_predictions = []  # Define the variable as a global list
+
+# Enable CORS for the stock prediction endpoint
+CORS(app, resources={
+    r"/shared/diabetes": {"origins": "http://localhost:3000"}
+})
+
+@app.route("/shared/diabetes", methods=["POST"])
+def share_diabetes_prediction():
+    data = request.json
+    LinearRegression = data.get('Linear Regression')
+    Ridge_Regression = data.get('Ridge Regression')
+    Lasso_Regression = data.get('Lasso Regression')
+    Age = data.get('Age')
+    Sex = data.get('Sex')
+    BMI = data.get('Body Mass Index (BMI)')
+    Average_Blood_Pressure = data.get('Average Blood Pressure')
+    Total_Serum_Cholesterol = data.get('Total Serum Cholesterol')
+    Low_Density_Lipoproteins = data.get('Low Density Lipoproteins')
+    High_Density_Lipoproteins = data.get('High Density Lipoproteins')
+    Total_Cholesterol_HDL = data.get('Total Cholesterol / HDL')
+    Log_of_Serum_Triglicerydes_Level = data.get('Log of Serum Triglicerydes Level')
+    Blood_Sugar_Level = data.get('Blood Sugar Level')
+
+    # Create a new shared prediction object
+    shared_diabetes_prediction = {
+        '_id': len(shared_diab_predictions) + 1,
+        'Linear Regression': LinearRegression,
+        'Ridge Regression': Ridge_Regression,
+        'Lasso Regression': Lasso_Regression,
+        'Age': Age,
+        'Sex': Sex,
+        'Body Mass Index (BMI)': BMI,
+        'Average Blood Pressure': Average_Blood_Pressure,
+        'Total Serum Cholesterol': Total_Serum_Cholesterol,
+        'Low Density Lipoproteins': Low_Density_Lipoproteins,
+        'High Density Lipoproteins': High_Density_Lipoproteins,
+        'Total Cholesterol / HDL': Total_Cholesterol_HDL,
+        'Log of Serum Triglicerydes Level': Log_of_Serum_Triglicerydes_Level,
+        'Blood Sugar Level': Blood_Sugar_Level,
+    }
+
+    # Add the shared prediction to the list
+    shared_diab_predictions.append(shared_diabetes_prediction)
+
+    return jsonify(shared_diabetes_prediction)
+
+
+@app.route('/shared/diabetes', methods=['GET'])
+def get_shared_diab_predictions():
+    return jsonify(shared_diab_predictions)

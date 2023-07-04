@@ -1,8 +1,12 @@
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+from sklearn.datasets import load_diabetes
+from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPRegressor
 import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.datasets import  fetch_california_housing
+from sklearn.datasets import fetch_california_housing
 import numpy as np
 from sklearn.base import BaseEstimator
 import yfinance as yf
@@ -60,27 +64,45 @@ def register():
 
     return jsonify({"message": "User registered successfully"}), 201
 
+
+import jwt
+
+
 @app.route("/login", methods=["POST"])
 def login():
     # Extract the login details from the request
+    secret_login__key = secrets.token_hex(16)
     email = request.json.get("email")
     password = request.json.get("password")
 
     # Retrieve the user from the database based on the provided email
     user_dict = mongo.db.users.find_one({"email": email})
+    print("Retrieved user from the database:", user_dict)  # Add this line for debugging
+
 
     # Check if the user exists and the password is correct
     if user_dict:
         # Create a User object from the retrieved dictionary
         user = User(**user_dict)
 
-        if user.check_password(password):
-            # Perform the login logic here
-            # For example, you can create a session or issue a token for authentication
-            return jsonify({"message": "User logged in successfully"}), 200
+        # Verify the password check
+        is_password_match = user.check_password(password)
+        print("Is password match:", is_password_match)  # Add this line for verification
 
-    # Return an error message if the login is unsuccessful
-    return jsonify({"message": "Invalid email or password"}), 401
+        if is_password_match:
+            # Generate the authentication token
+            payload = {"user_id": str(user._id)}
+            secret_key = secret_login__key  # Replace with your own secret key
+            algorithm = "HS256"
+            token = jwt.encode(payload, secret_key, algorithm=algorithm)
+
+            print("Generated token:", token) 
+            print("User's full name:", user.full_name)
+            # Return the token to the client
+            return jsonify({"token": token, "fullName": user.full_name}), 200
+
+    # If the user does not exist or the password is incorrect, return an error response
+    return jsonify({"error": "Invalid credentials"}), 401
 
 @app.route("/login/google")
 def login_google():
@@ -93,7 +115,8 @@ def login_google():
     email = google_user_info["email"]
 
     # Check if the email is already registered
-    if mongo.db.users.find_one({"email": email}):
+    user_dict = mongo.db.users.find_one({"email": email})
+    if user_dict:
         return jsonify({"message": "Email already registered"}), 409
 
     # Create a new user document
@@ -105,16 +128,14 @@ def login_google():
     return jsonify({"message": "User registered successfully"}), 201
 
 
-
-#CORS(app)
-#CORS(app, origins='http://localhost:3000')
-
+# CORS(app)
+# CORS(app, origins='http://localhost:3000')
 # Enable CORS for the house prediction endpoint
 CORS(app, resources={r"/predict": {"origins": "http://localhost:3000"}})
 
 # Enable CORS for the diabetes prediction endpoint
-CORS(app, resources={r"/predict/diabetes": {"origins": "http://localhost:3000"}})
-
+CORS(app, resources={
+     r"/predict/diabetes": {"origins": "http://localhost:3000"}})
 
 
 class KnnRegressor(BaseEstimator):
@@ -147,7 +168,7 @@ knn_reg_cali.fit(X_cali, y_cali)
 @app.route('/predict', methods=['POST'])
 def predict():
     user_input = request.json
-    
+
     # Extract the features from the user input
     feature_values = [
         float(user_input['feature1']),
@@ -160,23 +181,23 @@ def predict():
         float(user_input['feature8']),
 
     ]
-    
+
     # Convert the feature values to a numpy array
     input_data = np.array(feature_values).reshape(1, -1)
-    
+
     # Make the prediction using the trained model
     prediction = knn_reg_cali.predict(input_data)[0]
 
     # Return the prediction result as JSON
     HP_result = {'prediction': prediction,
-                'Median Income of Households in a block' :float(user_input['feature1']),
-                'Median Age of a House within a block' :float(user_input['feature2']),
-                'Average Number of Rooms in a Block' :float(user_input['feature3']),
-                'Average Number of Bedrooms in a Block' :float(user_input['feature4']),
-                'Total Number of people residing within a block' :float(user_input['feature5']),
-                'Average Occupancy' : float(user_input['feature6']),
-                'Latitude' : float(user_input['feature7']),
-                'Longitude' :float(user_input['feature8'])}
+                 'Median Income of Households in a block': float(user_input['feature1']),
+                 'Median Age of a House within a block': float(user_input['feature2']),
+                 'Average Number of Rooms in a Block': float(user_input['feature3']),
+                 'Average Number of Bedrooms in a Block': float(user_input['feature4']),
+                 'Total Number of people residing within a block': float(user_input['feature5']),
+                 'Average Occupancy': float(user_input['feature6']),
+                 'Latitude': float(user_input['feature7']),
+                 'Longitude': float(user_input['feature8'])}
 
     try:
         # Save the result in the MongoDB collection
@@ -185,19 +206,120 @@ def predict():
     except Exception as e:
         print("Error saving result in the database:", str(e))
 
-
     HP_result['_id'] = str(HP_result['_id'])  # Convert ObjectId to string
 
     # Return the prediction result as JSON
     result = {'prediction': prediction}
     return jsonify(result)
 
+
+
+
+from flask_login import login_required
+import jwt
+
+
+
+
+def load_user(user_id):
+    print("Inside load_user function", flush=True)
+    print("User ID:", user_id, flush=True)
+    # Retrieve the user from the database based on the user_id
+    user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    print("Retrieved user:", user, flush=True)
+    
+    # If the user exists, create a User object with the necessary attributes
+    if user:
+        user_object = User(user['_id'], user['full_name'], user['email'], user['password_hash'])
+        print("User object:", user_object, flush=True)
+
+        return user_object
+
+    return None
+
+
+# Enable CORS for the diabetes prediction endpoint
+CORS(app, resources={r"/save-prediction": {"origins": "http://localhost:3000"}})
+
+@app.route('/save-prediction', methods=['POST'])
+def save_prediction():
+    # Extract the prediction data from the request
+    prediction_data = request.json
+
+    # Retrieve the user's profile from the database
+    if 'user_id' in prediction_data:
+        # Add the prediction data to the user's profile
+        user_id = prediction_data['user_id']
+        user = mongo.db.users.find_one({'UserID': user_id})
+        user['prediction_data'].append(prediction_data)
+
+        # Save the updated profile data in the database
+        mongo.db.users.update_one({'UserID': prediction_data['user_id']}, {'$set': user})
+
+        return jsonify(message='Prediction saved successfully')
+    else:
+        return jsonify(message='User not found'), 404
+
+
+
+shared_house_predictions = []  # Define the variable as a global list
+
+# Enable CORS for the stock prediction endpoint
+CORS(app, resources={
+    r"/shared/house": {"origins": "http://localhost:3000"}
+})
+
+
+@app.route("/shared/house", methods=["POST"])
+def share_house_prediction():
+    data = request.json
+    prediction = data.get('prediction')
+    if prediction is not None:
+        try:
+            prediction = float(prediction)  # Convert prediction to a number
+        except (ValueError, TypeError):
+            return jsonify(error='Invalid prediction value'), 400
+    else:
+        return jsonify(error='Missing or invalid prediction value'), 400
+
+    median_income = data.get('Median Income of Households in a block')
+    median_age = data.get('Median Age of a House within a block')
+    num_rooms = data.get('Average Number of Rooms in a Block')
+    num_bedrooms = data.get('Average Number of Bedrooms in a Block')
+    num_residents = data.get('Total Number of people residing within a block')
+    avg_occupancy = data.get('Average Occupancy')
+    latitude = data.get('Latitude')
+    longitude = data.get('Longitude')
+
+    # Create a new shared prediction object
+    shared_house_prediction = {
+        '_id': len(shared_house_predictions) + 1,
+        'prediction': prediction,
+        'Median Income of Households in a block': median_income,
+        'Median Age of a House within a block': median_age,
+        'Average Number of Rooms in a Block': num_rooms,
+        'Average Number of Bedrooms in a Block': num_bedrooms,
+        'Total Number of people residing within a block': num_residents,
+        'Average Occupancy': avg_occupancy,
+        'Latitude': latitude,
+        'Longitude': longitude
+    }
+
+    # Add the shared prediction to the list
+    shared_house_predictions.append(shared_house_prediction)
+
+    return jsonify(shared_house_prediction)
+
+@app.route('/shared/house', methods=['GET'])
+def get_shared_house_predictions():
+    return jsonify(shared_house_predictions)
+
+
+
+################################
+
 # Diabetes Prediction Model
 
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression, Lasso, Ridge
-from sklearn.datasets import load_diabetes
-from sklearn.metrics import mean_squared_error
 
 diabetes = load_diabetes()
 x_train, x_test, y_train, y_test = train_test_split(
@@ -226,21 +348,21 @@ def predict_diabetes():
     ]
 
     input_data = np.array(feature_values).reshape(1, -1)
-    
+
     model_predictions = {
         'Linear Regression': linear.predict(input_data)[0],
         'Ridge Regression': ridge.predict(input_data)[0],
         'Lasso Regression': lasso.predict(input_data)[0],
-        'Age' : float(user_input['feature1']),
-        'Sex' : float(user_input['feature2']),
-        'Body Mass Index (BMI)' : float(user_input['feature3']),
-        'Average Blood Pressure' :float(user_input['feature4']),
-        'Total Serum Cholesterol' : float(user_input['feature5']),
-        'Low Density Lipoproteins' : float(user_input['feature6']),
-        'High Density Lipoproteins' : float(user_input['feature7']),
-        'Total Cholesterol / HDL' : float(user_input['feature8']),
-        'Log of Serum Triglicerydes Level' : float(user_input['feature9']),
-        'Blood Sugar Level' : float(user_input['feature10']),
+        'Age': float(user_input['feature1']),
+        'Sex': float(user_input['feature2']),
+        'Body Mass Index (BMI)': float(user_input['feature3']),
+        'Average Blood Pressure': float(user_input['feature4']),
+        'Total Serum Cholesterol': float(user_input['feature5']),
+        'Low Density Lipoproteins': float(user_input['feature6']),
+        'High Density Lipoproteins': float(user_input['feature7']),
+        'Total Cholesterol / HDL': float(user_input['feature8']),
+        'Log of Serum Triglicerydes Level': float(user_input['feature9']),
+        'Blood Sugar Level': float(user_input['feature10']),
     }
 
     try:
@@ -250,8 +372,8 @@ def predict_diabetes():
     except Exception as e:
         print("Error saving result in the database:", str(e))
 
-
-    model_predictions['_id'] = str(model_predictions['_id'])  # Convert ObjectId to string
+    # Convert ObjectId to string
+    model_predictions['_id'] = str(model_predictions['_id'])
 
     LR_predictions = {
         'Linear Regression': linear.predict(input_data)[0],
@@ -264,8 +386,59 @@ def predict_diabetes():
     return jsonify(LR_result)
 
 
+shared_diab_predictions = []  # Define the variable as a global list
+
+# Enable CORS for the stock prediction endpoint
+CORS(app, resources={
+    r"/shared/diabetes": {"origins": "http://localhost:3000"}
+})
 
 
+@app.route("/shared/diabetes", methods=["POST"])
+def share_diabetes_prediction():
+    data = request.json
+    LinearRegression = data.get('Linear Regression')
+    Ridge_Regression = data.get('Ridge Regression')
+    Lasso_Regression = data.get('Lasso Regression')
+    Age = data.get('Age')
+    Sex = data.get('Sex')
+    BMI = data.get('Body Mass Index (BMI)')
+    Average_Blood_Pressure = data.get('Average Blood Pressure')
+    Total_Serum_Cholesterol = data.get('Total Serum Cholesterol')
+    Low_Density_Lipoproteins = data.get('Low Density Lipoproteins')
+    High_Density_Lipoproteins = data.get('High Density Lipoproteins')
+    Total_Cholesterol_HDL = data.get('Total Cholesterol / HDL')
+    Log_of_Serum_Triglicerydes_Level = data.get(
+        'Log of Serum Triglicerydes Level')
+    Blood_Sugar_Level = data.get('Blood Sugar Level')
+
+    # Create a new shared prediction object
+    shared_diabetes_prediction = {
+        '_id': len(shared_diab_predictions) + 1,
+        'Linear Regression': LinearRegression,
+        'Ridge Regression': Ridge_Regression,
+        'Lasso Regression': Lasso_Regression,
+        'Age': Age,
+        'Sex': Sex,
+        'Body Mass Index (BMI)': BMI,
+        'Average Blood Pressure': Average_Blood_Pressure,
+        'Total Serum Cholesterol': Total_Serum_Cholesterol,
+        'Low Density Lipoproteins': Low_Density_Lipoproteins,
+        'High Density Lipoproteins': High_Density_Lipoproteins,
+        'Total Cholesterol / HDL': Total_Cholesterol_HDL,
+        'Log of Serum Triglicerydes Level': Log_of_Serum_Triglicerydes_Level,
+        'Blood Sugar Level': Blood_Sugar_Level,
+    }
+
+    # Add the shared prediction to the list
+    shared_diab_predictions.append(shared_diabetes_prediction)
+
+    return jsonify(shared_diabetes_prediction)
+
+
+@app.route('/shared/diabetes', methods=['GET'])
+def get_shared_diab_predictions():
+    return jsonify(shared_diab_predictions)
 
 
 # Enable CORS for the stock prediction endpoint
@@ -286,7 +459,6 @@ def predict_stock():
     # Get current date
     from datetime import datetime, timedelta
 
-
     # Get the current date
     current_date = datetime.now().date()
 
@@ -300,7 +472,7 @@ def predict_stock():
 
     # Format the current date as "yyyy-mm-dd"
     most_recent_trading_date = current_date.strftime("%Y-%m-%d")
-    
+
     # Generate first trading days for some stocks:
 
     '''
@@ -367,7 +539,7 @@ def predict_stock():
 
     # Split the adjusted data into features (X) and target variable (y)
     X = stock_data.drop('Close', axis=1)  # Features
-    y = stock_data['Close']  # Target variable
+    y = np.log(stock_data['Close'])  # Log-transformed target variable
 
     # Create an instance of the StandardScaler
     scaler = StandardScaler()
@@ -377,6 +549,9 @@ def predict_stock():
 
     # Transform the data using the scaler
     X_scaled = scaler.transform(X)
+
+    def mean_squared_error(y, y_hat, length):
+        return sum(((y-y_hat)**2))/length
 
     # Split the adjusted data into train and test sets
     X_train, X_test, y_train, y_test = train_test_split(
@@ -388,8 +563,11 @@ def predict_stock():
 
     for n in neurons_range:
         model = MLPRegressor(hidden_layer_sizes=(
-            n,n,n), max_iter=2000, tol=1e-4, activation='relu', solver='adam', alpha=0.001)
+            n, n, n), max_iter=2000, tol=1e-4, activation='relu', solver='adam', alpha=0.001)
         model.fit(X_train, y_train)
+        # model.predict(X_test)
+        # error = 1 - model.score(X_test, y_test)
+
         error = 1 - model.score(X_test, y_test)
         test_errors.append(error)
         print(f'Number of neurons: {n}, Test error: {error:.6f}')
@@ -404,28 +582,31 @@ def predict_stock():
     best_neuron_count = list_neurons[min_index]
 
     # Create an instance of the MLPRegressor with the best_neuron_count
-    model = MLPRegressor(hidden_layer_sizes=(best_neuron_count, 
+    model = MLPRegressor(hidden_layer_sizes=(best_neuron_count,
                                              best_neuron_count,
                                              best_neuron_count), max_iter=2000,
                          tol=1e-4, activation='relu', solver='adam', alpha=0.001)
     model.fit(X_scaled, y)
 
+    NN_MSE = mean_squared_error(y_test, model.predict(X_test), len(X_test))
+
     # Make predictions
     predicted_price = model.predict(X_test)[-1]
     formatted_price = Decimal(predicted_price).quantize(Decimal('0.0000'))
-    most_recent_price = stock.history(period="1d")["Close"].iloc[-1]
-    formatted_recent_price = Decimal(most_recent_price).quantize(Decimal('0.0000'))
+    most_recent_price = np.log(stock.history(period="1d")["Close"].iloc[-1])
+    formatted_recent_price = Decimal(
+        most_recent_price).quantize(Decimal('0.0000'))
 
     # Stock XGBoost
     import xgboost as xgb
     from xgboost import DMatrix
- 
+
     ########################
     # Define the hyperparameter grid
     param_grid = {
         'learning_rate': [0.1, 0.01],
-        'n_estimators': [100, 200, 300],
-        'max_depth': [3, 5, 7],
+        'n_estimators': [100, 200, 300, 500, 1000],
+        'max_depth': [3, 5, 7, 10, 13],
         'subsample': [0.8, 1.0],
         'colsample_bytree': [0.8, 1.0],
     }
@@ -437,7 +618,7 @@ def predict_stock():
 
     # Perform grid search
     grid_search = GridSearchCV(
-        estimator=boost_model, param_grid=param_grid, cv=5)
+        estimator=boost_model, param_grid=param_grid, cv=10)
     grid_search.fit(X_train, y_train)
 
     # Get the best parameters and best score
@@ -456,7 +637,7 @@ def predict_stock():
         'predicted_price': str(formatted_price),
         'xgboost_predicted_price': str(XG_formatted_price),
         'most_recent_price': str(formatted_recent_price),
-        'symbol': str(symbol)
+
     }
 
     try:
@@ -471,11 +652,13 @@ def predict_stock():
     # Return the predicted price as JSON
     return jsonify(result)
 
+
 shared_predictions = []
 CORS(app)
 # Enable CORS for the stock prediction endpoint
 CORS(app, resources={
      r"/share": {"origins": "http://localhost:3000"}})
+
 
 @app.route('/share', methods=['POST'])
 def share_prediction():
@@ -499,11 +682,10 @@ def share_prediction():
 
     return jsonify(shared_prediction)
 
+
 @app.route('/shared', methods=['GET'])
 def get_shared_predictions():
     return jsonify(shared_predictions)
-
-
 
 
 if __name__ == '__main__':
